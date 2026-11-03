@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ROI Editor - Stable</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #0f172a; color: #f8fafc; font-family: 'Segoe UI', sans-serif; }
+        .navbar { background-color: #000 !important; border-bottom: 1px solid #334155; }
+        .card { background-color: #1e293b; border: 1px solid #334155; }
+        #canvas-container { position: relative; display: inline-block; background: #000; border: 2px solid #334155; border-radius: 8px; overflow: hidden; }
+        #video-frame { max-width: 100%; height: auto; display: block; }
+        #roi-canvas { position: absolute; top: 0; left: 0; pointer-events: none; }
+        .btn-primary { background-color: #0ea5e9; border: none; }
+        .btn-success { background-color: #10b981; border: none; }
+        .btn-danger { background-color: #ef4444; border: none; }
+        .btn-warning { background-color: #f59e0b; border: none; }
+        .status-badge { padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+        .status-active { background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid #22c55e; }
+        .status-inactive { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid #ef4444; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark px-4">
+        <a class="navbar-brand fw-bold text-primary" href="#">🌊 LIVING LAB SEKANAK CONNECT</a>
+        <div class="collapse navbar-collapse">
+            <ul class="navbar-nav ms-auto">
+                <li class="nav-item"><a class="nav-link" href="/">Live Stream</a></li>
+                <li class="nav-item"><a class="nav-link" href="/cameras">Kelola Kamera</a></li>
+                <li class="nav-item"><a class="nav-link active" href="/roi">ROI Editor</a></li>
+                <li class="nav-item"><a class="nav-link" href="/logs">Log Pelanggaran</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container-fluid py-4">
+        <div class="row">
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-header bg-black fw-bold">🎯 ROI Configuration</div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Pilih Kamera</label>
+                            <select id="camera-select" class="form-select bg-dark text-white border-secondary">
+                                <option value="">-- Pilih Kamera --</option>
+                            </select>
+                        </div>
+
+                        <div id="camera-info" class="mb-3" style="display: none;">
+                            <div class="p-2 bg-dark rounded" style="border: 1px solid #334155;">
+                                <div><strong>Nama:</strong> <span id="cam-name">-</span></div>
+                                <div><strong>Status:</strong> <span id="cam-status" class="status-badge">-</span></div>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-info" style="background: rgba(14, 165, 233, 0.1); border: 1px solid #0ea5e9; color: #7dd3fc; font-size: 13px;">
+                            <strong>📋 Cara Pakai:</strong><br>
+                            1. Pilih kamera<br>
+                            2. Klik 4 titik di video<br>
+                            3. Simpan ROI
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Titik ROI (<span id="point-count">0</span>/4)</label>
+                            <div id="point-list" style="max-height: 200px; overflow-y: auto;"></div>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button id="btn-save" class="btn btn-success" disabled>💾 Simpan ROI</button>
+                            <button id="btn-reset" class="btn btn-warning">🔄 Reset</button>
+                            <button id="btn-load" class="btn btn-primary" disabled>📥 Load ROI</button>
+                            <button id="btn-clear" class="btn btn-danger" disabled>🗑️ Hapus ROI</button>
+                        </div>
+
+                        <div id="status-message" class="mt-3" style="display: none;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-9">
+                <div class="card">
+                    <div class="card-header bg-black fw-bold d-flex justify-content-between align-items-center">
+                        <span>📹 Live Preview & ROI Editor (Stable)</span>
+                        <span class="badge bg-secondary" id="resolution-info">-</span>
+                    </div>
+                    <div class="card-body text-center">
+                        <div id="loading-message" class="alert alert-info">
+                            <strong>Silakan pilih kamera</strong>
+                        </div>
+                        <div id="canvas-container" style="display: none;">
+                            <img id="video-frame" style="max-width: 100%; height: auto;">
+                            <canvas id="roi-canvas" style="position: absolute; top: 0; left: 0; pointer-events: none;"></canvas>
+                        </div>
+                        <div id="error-message" style="display: none;" class="alert alert-danger mt-3"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const cameraSelect = document.getElementById('camera-select');
+        const videoFrame = document.getElementById('video-frame');
+        const roiCanvas = document.getElementById('roi-canvas');
+        const roiCtx = roiCanvas.getContext('2d');
+        const pointList = document.getElementById('point-list');
+        const pointCount = document.getElementById('point-count');
+        const btnSave = document.getElementById('btn-save');
+        const btnReset = document.getElementById('btn-reset');
+        const btnLoad = document.getElementById('btn-load');
+        const btnClear = document.getElementById('btn-clear');
+        const statusMessage = document.getElementById('status-message');
+        const loadingMessage = document.getElementById('loading-message');
+        const canvasContainer = document.getElementById('canvas-container');
+        const errorMessage = document.getElementById('error-message');
+        const resolutionInfo = document.getElementById('resolution-info');
+        const cameraInfo = document.getElementById('camera-info');
+        const camName = document.getElementById('cam-name');
+        const camStatus = document.getElementById('cam-status');
+
+        let roiPoints = [];
+        let currentCameraId = null;
+        let videoUpdateTimer = null;
+        let frameCounter = 0;
+        let isUpdating = false;
+
+        loadCameras();
+        cameraSelect.addEventListener('change', handleCameraChange);
+        btnSave.addEventListener('click', saveROI);
+        btnReset.addEventListener('click', resetPoints);
+        btnLoad.addEventListener('click', loadROI);
+        btnClear.addEventListener('click', clearROIFromDB);
+
+        async function loadCameras() {
+            try {
+                const response = await fetch('/api/cameras/list');
+                const cameras = await response.json();
+                cameraSelect.innerHTML = '<option value="">-- Pilih Kamera --</option>';
+                cameras.forEach(cam => {
+                    const option = document.createElement('option');
+                    option.value = cam.camera_id;
+                    option.textContent = `${cam.name} (${cam.camera_id})`;
+                    option.dataset.name = cam.name;
+                    option.dataset.active = cam.is_active;
+                    cameraSelect.appendChild(option);
+                });
+            } catch (error) {
+                showStatus('❌ Gagal memuat kamera: ' + error.message, 'danger');
+            }
+        }
+
+        function handleCameraChange() {
+            const selectedOption = cameraSelect.options[cameraSelect.selectedIndex];
+            currentCameraId = cameraSelect.value;
+            
+            if (!currentCameraId) {
+                canvasContainer.style.display = 'none';
+                loadingMessage.style.display = 'block';
+                cameraInfo.style.display = 'none';
+                stopVideo();
+                return;
+            }
+
+            camName.textContent = selectedOption.dataset.name;
+            const isActive = selectedOption.dataset.active === 'true';
+            camStatus.textContent = isActive ? 'Aktif' : 'Tidak Aktif';
+            camStatus.className = 'status-badge ' + (isActive ? 'status-active' : 'status-inactive');
+            cameraInfo.style.display = 'block';
+
+            btnLoad.disabled = false;
+            btnClear.disabled = false;
+            loadingMessage.style.display = 'none';
+            errorMessage.style.display = 'none';
+            resetPoints();
+            startVideo();
+        }
+
+        function startVideo() {
+            if (!currentCameraId) return;
+            stopVideo();
+            
+            const updateFrame = () => {
+                if (!currentCameraId || isUpdating) return;
+                
+                frameCounter++;
+                if (frameCounter % 4 === 0) {
+                    isUpdating = true;
+                    videoFrame.src = `/api/stream/${currentCameraId}?t=${Date.now()}`;
+                    setTimeout(() => { isUpdating = false; }, 100);
+                }
+                videoUpdateTimer = setTimeout(updateFrame, 300);
+            };
+            
+            videoFrame.onload = function() {
+                roiCanvas.width = videoFrame.naturalWidth;
+                roiCanvas.height = videoFrame.naturalHeight;
+                resolutionInfo.textContent = `${videoFrame.naturalWidth}x${videoFrame.naturalHeight}`;
+                canvasContainer.style.display = 'block';
+                drawROI();
+            };
+            
+            videoFrame.onerror = function() {
+                errorMessage.textContent = '❌ Gagal memuat stream. Pastikan kamera aktif.';
+                errorMessage.style.display = 'block';
+                canvasContainer.style.display = 'none';
+            };
+            
+            videoFrame.src = `/api/stream/${currentCameraId}?t=${Date.now()}`;
+            updateFrame();
+            
+            canvasContainer.addEventListener('click', handleCanvasClick);
+        }
+
+        function stopVideo() {
+            if (videoUpdateTimer) {
+                clearTimeout(videoUpdateTimer);
+                videoUpdateTimer = null;
+            }
+            videoFrame.src = '';
+        }
+
+        function handleCanvasClick(event) {
+            if (!currentCameraId || roiPoints.length >= 4) return;
+
+            const rect = videoFrame.getBoundingClientRect();
+            const scaleX = videoFrame.naturalWidth / rect.width;
+            const scaleY = videoFrame.naturalHeight / rect.height;
+            
+            const x = Math.round((event.offsetX - rect.left) * scaleX);
+            const y = Math.round((event.offsetY - rect.top) * scaleY);
+
+            roiPoints.push([x, y]);
+            updatePointList();
+            drawROI();
+
+            if (roiPoints.length >= 4) {
+                btnSave.disabled = false;
+            }
+        }
+
+        function drawROI() {
+            roiCtx.clearRect(0, 0, roiCanvas.width, roiCanvas.height);
+            
+            if (roiPoints.length === 0) return;
+
+            roiCtx.strokeStyle = '#00ff00';
+            roiCtx.lineWidth = 2;
+
+            roiCtx.beginPath();
+            roiCtx.moveTo(roiPoints[0][0], roiPoints[0][1]);
+            
+            for (let i = 1; i < roiPoints.length; i++) {
+                roiCtx.lineTo(roiPoints[i][0], roiPoints[i][1]);
+            }
+
+            if (roiPoints.length === 4) {
+                roiCtx.closePath();
+                roiCtx.stroke();
+            } else {
+                roiCtx.stroke();
+            }
+
+            roiPoints.forEach((point, index) => {
+                roiCtx.fillStyle = '#ff0000';
+                roiCtx.beginPath();
+                roiCtx.arc(point[0], point[1], 4, 0, 2 * Math.PI);
+                roiCtx.fill();
+            });
+        }
+
+        function updatePointList() {
+            pointCount.textContent = roiPoints.length;
+            pointList.innerHTML = '';
+            roiPoints.forEach((point, index) => {
+                const div = document.createElement('div');
+                div.className = 'p-2 mb-1 bg-dark rounded';
+                div.style.border = '1px solid #334155';
+                div.innerHTML = `
+                    <div class="d-flex justify-content-between">
+                        <span>Titik ${index + 1}: (${point[0]}, ${point[1]})</span>
+                        <button class="btn btn-sm btn-danger" onclick="removePoint(${index})">✕</button>
+                    </div>
+                `;
+                pointList.appendChild(div);
+            });
+        }
+
+        function removePoint(index) {
+            roiPoints.splice(index, 1);
+            updatePointList();
+            if (roiPoints.length < 4) {
+                btnSave.disabled = true;
+            }
+            drawROI();
+        }
+
+        function resetPoints() {
+            roiPoints = [];
+            updatePointList();
+            btnSave.disabled = true;
+            drawROI();
+            statusMessage.style.display = 'none';
+        }
+
+        async function saveROI() {
+            if (roiPoints.length !== 4) {
+                showStatus('⚠️ Perlu tepat 4 titik', 'warning');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/cameras/${currentCameraId}/roi`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ roi_polygon: JSON.stringify(roiPoints) })
+                });
+
+                if (response.ok) {
+                    showStatus('✅ ROI berhasil disimpan', 'success');
+                } else {
+                    showStatus('❌ Gagal menyimpan ROI', 'danger');
+                }
+            } catch (error) {
+                showStatus('❌ Error: ' + error.message, 'danger');
+            }
+        }
+
+        async function loadROI() {
+            if (!currentCameraId) return;
+            try {
+                const response = await fetch(`/api/cameras/${currentCameraId}/roi`);
+                const result = await response.json();
+                if (response.ok && result.roi_polygon && result.roi_polygon !== '[]') {
+                    roiPoints = JSON.parse(result.roi_polygon);
+                    updatePointList();
+                    drawROI();
+                    btnSave.disabled = false;
+                    showStatus('✅ ROI berhasil dimuat', 'success');
+                } else {
+                    showStatus('ℹ️ Tidak ada ROI tersimpan', 'info');
+                }
+            } catch (error) {
+                showStatus('❌ Error: ' + error.message, 'danger');
+            }
+        }
+
+        async function clearROIFromDB() {
+            if (!currentCameraId || !confirm('Hapus ROI dari database?')) return;
+            try {
+                const response = await fetch(`/api/cameras/${currentCameraId}/roi`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ roi_polygon: '[]' })
+                });
+                if (response.ok) {
+                    resetPoints();
+                    showStatus('✅ ROI dihapus', 'success');
+                }
+            } catch (error) {
+                showStatus('❌ Error: ' + error.message, 'danger');
+            }
+        }
+
+        function showStatus(message, type) {
+            statusMessage.className = `alert alert-${type}`;
+            statusMessage.textContent = message;
+            statusMessage.style.display = 'block';
+            setTimeout(() => { statusMessage.style.display = 'none'; }, 5000);
+        }
+
+        window.addEventListener('beforeunload', stopVideo);
+    </script>
+</body>
+</html>

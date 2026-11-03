@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kelola Kamera RTSP - RiverMonitor AI</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="bg-dark text-white">
+
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-black border-bottom border-secondary px-4">
+        <a class="navbar-brand fw-bold text-primary" href="#">🌊 LIVING LAB SEKANAK CONECT</a>
+        <div class="collapse navbar-collapse">
+            <ul class="navbar-nav ms-auto">
+                <li class="nav-item"><a class="nav-link" href="/">Live Stream</a></li>
+                <li class="nav-item"><a class="nav-link active" href="/cameras">Kelola Kamera</a></li>
+                <li class="nav-item"><a class="nav-link" href="/roi">ROI Editor</a></li>
+                <li class="nav-item"><a class="nav-link" href="/logs">Log Pelanggaran</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container py-4">
+        <div class="row">
+            <!-- Form Tambah Kamera -->
+            <div class="col-md-5 mb-4">
+                <div class="card bg-secondary text-white">
+                    <div class="card-header bg-black fw-bold">Tambah Kamera Baru</div>
+                    <div class="card-body">
+                        <form id="add-camera-form">
+                            <div class="mb-3">
+                                <label class="form-label">ID Kamera (Tanpa Spasi)</label>
+                                <input type="text" id="cam-id" class="form-control" placeholder="Contoh: CCTV_01" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Nama / Lokasi</label>
+                                <input type="text" id="cam-name" class="form-control" placeholder="Contoh: Jembatan Ampera" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">URL RTSP</label>
+                                <input type="text" id="cam-rtsp" class="form-control" placeholder="rtsp://admin:pass@IP..." required>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">Simpan & Aktifkan Kamera</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabel Daftar Kamera -->
+            <div class="col-md-7">
+                <div class="card bg-secondary text-white">
+                    <div class="card-header bg-black fw-bold">Daftar Kamera Aktif</div>
+                    <div class="card-body p-0">
+                        <table class="table table-dark table-striped mb-0">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Nama Lokasi</th>
+                                    <th>Status</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="camera-table-body">
+                                <!-- Data kamera akan dimuat via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/camera_mgmt.js"></script>
+</body>
+</html>

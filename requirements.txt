@@ -1,0 +1,29 @@
+# FastAPI & Web Server
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+jinja2==3.1.2
+
+# Computer Vision & AI
+opencv-python==4.8.1.78
+opencv-contrib-python==4.8.1.78
+ultralytics==8.0.220
+torch==2.1.0
+torchvision==0.16.0
+insightface==0.7.3
+onnxruntime-gpu==1.16.3
+
+# Database
+sqlalchemy==2.0.23
+alembic==1.12.1
+
+# Utilities
+numpy==1.24.3
+pillow==10.1.0
+requests==2.31.0
+python-dotenv==1.0.0
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# Monitoring & Logging
+psutil==5.9.6

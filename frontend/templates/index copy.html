@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Command Center - Living Lab Sekanak</title>
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+        .header-actions { display: flex; gap: 15px; align-items: center; }
+        .status-badge {
+            background: rgba(34, 197, 94, 0.2); color: #4ade80; 
+            border: 1px solid #22c55e; padding: 6px 14px; border-radius: 20px; 
+            font-size: 14px; font-weight: bold;
+        }
+        .btn-primary {
+            background: #0ea5e9; color: white; border: none; 
+            padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold;
+        }
+        .btn-primary:hover { background: #0284c7; }
+        .btn-success {
+            background: #10b981; color: white; border: none; 
+            padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold;
+        }
+        .btn-danger {
+            background: #ef4444; color: white; border: none; 
+            padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;
+        }
+        /* Tombol Peringatan Khusus untuk Log */
+        .btn-warning {
+            background: #f59e0b; color: white; border: none; 
+            padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold;
+        }
+        .btn-warning:hover { background: #d97706; }
+        
+        .metrics-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px; margin-bottom: 25px;
+        }
+        .card { background: #1e293b; padding: 15px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        
+        /* Layout utama kini menjadi 1 kolom penuh agar grid kamera lebih lebar */
+        .main-layout { display: block; margin-top: 20px; } 
+        
+        .camera-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }
+        .cctv-card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; }
+        .cctv-header { background: #0f172a; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; font-size: 14px; font-weight: bold; }
+        .cctv-stream { width: 100%; height: 200px; object-fit: cover; background: #000; display: block; }
+        .cctv-footer { padding: 12px; background: #1a1a1a; border-top: 1px solid #334155; }
+        
+        .log-box { background: #1e293b; padding: 15px; border-radius: 8px; height: 420px; overflow-y: auto; border: 1px solid #334155; }
+        .log-item { padding: 10px; border-bottom: 1px solid #334155; font-size: 14px; }
+
+        /* Modal */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: none; justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background: #1e293b; padding: 25px; border-radius: 8px; width: 85%; max-width: 900px; border: 1px solid #334155; max-height: 85vh; overflow-y: auto; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; padding-bottom: 10px; margin-bottom: 15px; }
+        .btn-close { background: transparent; color: #94a3b8; border: none; font-size: 24px; cursor: pointer; }
+        
+        .dark-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 14px; margin-bottom: 20px; }
+        .dark-table th, .dark-table td { padding: 12px; border-bottom: 1px solid #334155; }
+        .dark-table th { background: #0f172a; color: #94a3b8; }
+        .dark-table td { color: #e2e8f0; }
+        .rtsp-text { font-family: monospace; color: #38bdf8; background: #0f172a; padding: 4px 8px; border-radius: 4px; }
+
+        /* Form Tambah Kamera */
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; margin-bottom: 5px; color: #94a3b8; font-size: 13px; }
+        .form-control { width: 100%; padding: 10px; background: #0f172a; border: 1px solid #334155; color: #fff; border-radius: 6px; box-sizing: border-box; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h2 style="margin: 0; color: #38bdf8;">🌊 LIVING LAB SEKANAK CONNECT</h2>
+        <div class="header-actions">
+            <span class="status-badge">● System Operational</span>
+            <!-- Tombol Baru Untuk Buka Log -->
+            <button id="btnLihatLog" class="btn-warning">🚨 Log Pelanggaran</button>
+            <button id="btnKelolaKamera" class="btn-primary">⚙️ Kelola Kamera</button>
+        </div>
+    </header>
+
+    <div class="metrics-grid">
+        <div class="card" style="border-left: 4px solid #38bdf8;">
+            <small style="color: #94a3b8;">Kamera Online</small>
+            <h3 style="margin: 5px 0 0 0;" id="active-count">Memuat...</h3>
+        </div>
+        <div class="card" style="border-left: 4px solid #ef4444;">
+            <small style="color: #94a3b8;">Pelanggaran Hari Ini</small>
+            <h3 style="margin: 5px 0 0 0; color: #f87171;">-- Kejadian</h3>
+        </div>
+        <div class="card" style="border-left: 4px solid #10b981;">
+            <small style="color: #94a3b8;">Performa AI</small>
+            <h3 style="margin: 5px 0 0 0;">~28.5 FPS</h3>
+        </div>
+        <div class="card" style="border-left: 4px solid #a855f7;">
+            <small style="color: #94a3b8;">Status Storage</small>
+            <h3 style="margin: 5px 0 0 0; color: #c084fc;">42% Terpakai</h3>
+        </div>
+    </div>
+
+    <!-- Layout Utama Kini Sepenuhnya Untuk Kamera -->
+    <div class="main-layout">
+        <h3 style="margin-top: 0; color: #e2e8f0;">Live Stream Preview</h3>
+        <div id="camera-grid" class="camera-grid"></div>
+    </div>
+
+    <!-- MODAL LOG PELANGGARAN -->
+    <div id="modalLog" class="modal-overlay">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3 style="margin:0; color:#e2e8f0;">🚨 Log Pelanggaran Terakhir</h3>
+                <button id="closeModalLog" class="btn-close">&times;</button>
+            </div>
+            <div class="log-box" style="height: 500px; overflow-y: auto;">
+                <!-- Dummy data log -->
+                <div class="log-item">
+                    <strong style="color: #f87171;">18:42 WIB</strong> - Kamera 1<br>
+                    <span style="color: #94a3b8;">Indikasi buang sampah (89%)</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL KELOLA & TAMBAH KAMERA -->
+    <div id="modalKamera" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 style="margin:0; color:#e2e8f0;">⚙️ Manajemen Kamera & RTSP</h3>
+                <button id="closeModal" class="btn-close">&times;</button>
+            </div>
+
+            <!-- Tabel Daftar Kamera & RTSP -->
+            <div style="overflow-x: auto;">
+                <table class="dark-table">
+                    <thead>
+                        <tr>
+                            <th>Nama Titik</th>
+                            <th>Link RTSP (Source)</th>
+                            <th>Status</th>
+                            <th style="text-align: center; width: 80px;">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabelKameraBody">
+                        <tr><td colspan="4" style="text-align:center;">Memuat data...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Form Tambah Kamera Baru -->
+            <div style="background: #0f172a; padding: 15px; border-radius: 6px; border: 1px solid #334155; margin-top: 20px;">
+                <h4 style="margin-top: 0; color: #38bdf8;">➕ Tambah Kamera RTSP Baru</h4>
+                <form id="formTambahKamera">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <div class="form-group">
+                            <label>ID Kamera (contoh: LIVING_LAB_3)</label>
+                            <input type="text" id="camId" class="form-control" placeholder="LIVING_LAB_3" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Nama Titik</label>
+                            <input type="text" id="camName" class="form-control" placeholder="Titik Sungai 3" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>URL RTSP (contoh: rtsp://user:pass@IP:554/Streaming/Channels/301)</label>
+                        <input type="text" id="camRtsp" class="form-control" placeholder="rtsp://..." required>
+                    </div>
+                    <button type="submit" class="btn-success">Simpan & Tambah Kamera</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            loadDashboardData();
+
+            // Kontrol Modal Manajemen Kamera
+            const modalKamera = document.getElementById("modalKamera");
+            document.getElementById("btnKelolaKamera").onclick = () => {
+                modalKamera.style.display = "flex";
+                muatTabelRTSP();
+            };
+            document.getElementById("closeModal").onclick = () => {
+                modalKamera.style.display = "none";
+            };
+
+            // Kontrol Modal Log Pelanggaran Baru
+            const modalLog = document.getElementById("modalLog");
+            document.getElementById("btnLihatLog").onclick = () => {
+                modalLog.style.display = "flex";
+            };
+            document.getElementById("closeModalLog").onclick = () => {
+                modalLog.style.display = "none";
+            };
+
+            // Handle Submit Form Tambah Kamera
+            document.getElementById("formTambahKamera").onsubmit = async function(e) {
+                e.preventDefault();
+                const payload = {
+                    camera_id: document.getElementById("camId").value,
+                    name: document.getElementById("camName").value,
+                    rtsp_url: document.getElementById("camRtsp").value
+                };
+
+                try {
+                    const res = await fetch('/api/cameras/add', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (res.ok) {
+                        alert("Kamera berhasil ditambahkan!");
+                        document.getElementById("formTambahKamera").reset();
+                        muatTabelRTSP();
+                        loadDashboardData();
+                    } else {
+                        alert("Gagal menambahkan kamera.");
+                    }
+                } catch (err) {
+                    console.error(err);
+                }
+            };
+        });
+
+        function loadDashboardData() {
+            fetch("/api/cameras/list")
+                .then(res => res.json())
+                .then(cameras => {
+                    const grid = document.getElementById("camera-grid");
+                    const countBadge = document.getElementById("active-count");
+                    grid.innerHTML = "";
+
+                    const activeCount = cameras.filter(cam => cam.is_active).length;
+                    countBadge.innerText = `${activeCount} / ${cameras.length} Aktif`;
+
+                    cameras.forEach(cam => {
+                        const imgSrc = cam.is_active 
+                            ? `/api/stream/${cam.camera_id}` 
+                            : 'https://via.placeholder.com/640x360/111/fff?text=STREAM+OFFLINE';
+                        
+                        const actionBtn = cam.is_active 
+                            ? `<button class="btn-danger w-100" onclick="toggleStream('${cam.camera_id}', 'stop')">⏹ Stop Kamera</button>`
+                            : `<button class="btn-success w-100" onclick="toggleStream('${cam.camera_id}', 'start')">▶ Start Kamera</button>`;
+
+                        const card = document.createElement("div");
+                        card.className = "cctv-card";
+                        card.innerHTML = `
+                            <div class="cctv-header">
+                                <span>${cam.name || cam.camera_id}</span>
+                                <span style="color: ${cam.is_active ? '#4ade80' : '#ef4444'}">● ${cam.is_active ? 'LIVE' : 'OFFLINE'}</span>
+                            </div>
+                            <div style="position: relative; width: 100%; background: #000;">
+                                <img src="${imgSrc}" class="cctv-stream" alt="Stream">
+                            </div>
+                            <div class="cctv-footer">
+                                ${actionBtn}
+                            </div>
+                        `;
+                        grid.appendChild(card);
+                    });
+                })
+                .catch(err => console.error("Gagal memuat kamera:", err));
+        }
+
+        function toggleStream(cameraId, action) {
+            fetch(`/api/cameras/${cameraId}/${action}`, { method: "POST" })
+                .then(() => loadDashboardData())
+                .catch(err => console.error(err));
+        }
+
+        function muatTabelRTSP() {
+            const tbody = document.getElementById("tabelKameraBody");
+            fetch("/api/cameras/list")
+                .then(res => res.json())
+                .then(cameras => {
+                    tbody.innerHTML = "";
+                    cameras.forEach(cam => {
+                        const tr = document.createElement("tr");
+                        tr.innerHTML = `
+                            <td><strong>${cam.name || cam.camera_id}</strong></td>
+                            <td><span class="rtsp-text">${cam.rtsp_url || 'Tidak ada URL'}</span></td>
+                            <td><span style="color: ${cam.is_active ? '#4ade80' : '#ef4444'}">${cam.is_active ? 'Aktif' : 'Mati'}</span></td>
+                            <td style="text-align: center;">
+                                <button class="btn-danger" style="padding: 4px 8px;" onclick="hapusKamera('${cam.camera_id}')">Hapus</button>
+                            </td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                });
+        }
+
+        async function hapusKamera(cameraId) {
+            if (!confirm(`Apakah Anda yakin ingin menghapus kamera ${cameraId}?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/cameras/delete/${cameraId}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+
+                if (response.ok) {
+                    alert(result.message || "Kamera berhasil dihapus.");
+                    muatTabelRTSP();       
+                    loadDashboardData();   
+                } else {
+                    alert("Gagal menghapus kamera: " + (result.detail || "Error tidak diketahui"));
+                }
+            } catch (error) {
+                console.error("Error menghapus kamera:", error);
+                alert("Terjadi kesalahan jaringan saat menghapus kamera.");
+            }
+        }
+    </script>
+</body>
+</html>

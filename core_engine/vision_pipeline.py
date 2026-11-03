@@ -10,7 +10,8 @@ import numpy as np
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from .detector import ObjectDetector
 from .behavior_analyzer import BehaviorAnalyzer
-from .face_recognizer import FaceRecognizer
+# JANGAN import FaceRecognizer di top-level (cause segfault at uvicorn startup)
+# Will be lazy-loaded in VisionPipeline.__init__()
 from config import VIOLATION_CROP_DIR, BASE_DIR
 
 class VideoRecorder:
@@ -52,7 +53,20 @@ class VideoRecorder:
 class VisionPipeline:
     def __init__(self):
         self.detector = ObjectDetector()
-        self.face_recognizer = FaceRecognizer()
+        
+        # === FIX SEGMENTATION FAULT ===
+        # Lazy load FaceRecognizer untuk avoid crash saat uvicorn startup
+        self.face_recognizer = None
+        try:
+            print("[INFO] VisionPipeline: Lazy-loading FaceRecognizer...")
+            from .face_recognizer import FaceRecognizer
+            self.face_recognizer = FaceRecognizer()
+            print("[INFO] VisionPipeline: FaceRecognizer loaded successfully")
+        except Exception as e:
+            print(f"[WARNING] VisionPipeline: Failed to load FaceRecognizer: {e}")
+            self.face_recognizer = None
+        # =============================
+        
         self.cooldowns = {} # Mencegah spam database
         self._roi_cache = {}  # camera_id -> (timestamp, polygon_json)
         self._roi_ttl = 10.0

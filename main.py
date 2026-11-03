@@ -1,3 +1,32 @@
+import os
+import sys
+
+# === FIX SEGMENTATION FAULT ===
+# Set environment variables SEBELUM import library lain
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['NUMEXPR_NUM_THREADS'] = '1'
+
+# Disable OpenCV threading untuk mencegah konflik dengan uvicorn
+os.environ['OPENCV_OPENCL_RUNTIME'] = ''
+os.environ['OPENCV_OPENCL_DEVICE'] = 'disabled'
+
+# === SUPPRESS H.264 DECODER ERROR MESSAGES ===
+# Menghilangkan spam error "[h264 @ ...] error while decoding MB"
+os.environ['OPENCV_LOG_LEVEL'] = 'ERROR'  # Only show critical errors
+os.environ['OPENCV_FFMPEG_LOGLEVEL'] = '-8'  # Quiet mode for FFMPEG
+os.environ['OPENCV_VIDEOIO_DEBUG'] = '0'  # Disable debug output
+# =========================================
+
+# Set multiprocessing start method ke 'spawn' untuk Linux
+import multiprocessing
+try:
+    multiprocessing.set_start_method('spawn', force=True)
+except RuntimeError:
+    pass  # Already set
+# =============================
+
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -10,8 +39,11 @@ from config import HOST, PORT, BASE_DIR
 from backend_api.database.models import init_db, SessionLocal, Camera
 from backend_api.routers import camera_routes, stream_routes
 from core_engine.stream_manager import stream_manager
-from core_engine.face_recognizer import FaceRecognizer # <-- 1. Import FaceRecognizer di sini
+# JANGAN import FaceRecognizer di sini - akan di-import lazy di dalam lifespan()
 # -----------------------
+
+# Global variable untuk face system (akan di-load di lifespan)
+face_system = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -19,13 +51,10 @@ async def lifespan(app: FastAPI):
     print("[INFO] Menginisialisasi Database...")
     init_db()
 
-    # --- 2. INISIALISASI FACE RECOGNIZER DI SINI ---
-    print("[INFO] Memuat sistem pengenalan wajah...")
-    try:
-        global face_system
-        face_system = FaceRecognizer() # Otomatis meload folder database_wajah
-    except Exception as e:
-        print(f"[WARNING] Gagal memuat FaceRecognizer: {e}")
+    # --- 2. FACE RECOGNIZER AKAN DI-LOAD ON-DEMAND (tidak di sini) ---
+    # FaceRecognizer akan di-load otomatis saat pertama kali dibutuhkan
+    # oleh VisionPipeline.get_pipeline() untuk avoid blocking uvicorn startup
+    print("[INFO] ✓ FaceRecognizer akan di-load on-demand saat dibutuhkan")
     # -----------------------------------------------
 
     # 3. RESET SEMUA KAMERA KE STATUS STOP SAAT STARTUP
@@ -93,4 +122,14 @@ def render_roi_editor(request: Request):
     return templates.TemplateResponse(request=request, name="roi_editor_final.html")
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host=HOST, port=PORT, reload=False)
+    # Gunakan loop='asyncio' dan limit_concurrency untuk stabilitas
+    uvicorn.run(
+        "main:app", 
+        host=HOST, 
+        port=PORT, 
+        reload=False,
+        workers=1,  # Single worker untuk avoid fork issues
+        loop='asyncio',
+        log_level='info',
+        access_log=True
+    )

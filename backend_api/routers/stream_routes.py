@@ -21,8 +21,19 @@ import threading
 
 router = APIRouter(tags=["Streaming"])
 
-# Inisialisasi pipeline AI YOLO
-pipeline = VisionPipeline()
+# === FIX SEGMENTATION FAULT ===
+# JANGAN instantiate VisionPipeline di sini (akan crash saat uvicorn startup)
+# Gunakan lazy loading dengan function getter
+pipeline = None
+
+def get_pipeline():
+    """Lazy load VisionPipeline untuk avoid segfault saat uvicorn startup"""
+    global pipeline
+    if pipeline is None:
+        pipeline = VisionPipeline()
+        print("[INFO] VisionPipeline lazy-loaded successfully")
+    return pipeline
+# =============================
 
 # Semaphore GPU untuk membatasi max concurrent inference (RTX 3050 aman di 4 thread simultan)
 gpu_semaphore = threading.Semaphore(4)
@@ -104,7 +115,7 @@ def generate_frames(camera_id: str):
         if acquired:
             db = SessionLocal()
             try:
-                processed_frame = pipeline.process_frame(camera_id, frame, roi_json, db)
+                processed_frame = get_pipeline().process_frame(camera_id, frame, roi_json, db)
                 if processed_frame is not None:
                     frame = processed_frame
             except Exception as e:

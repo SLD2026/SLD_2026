@@ -2,8 +2,19 @@ import os
 from pathlib import Path
 
 # --- Trik wajib untuk menembus keamanan NVR Hikvision ---
-# Menambah stimeout dan reorder_queue_size untuk stabilitas stream RTSP
-os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;udp|reorder_queue_size;100|stimeout;5000000|buffer_size;2048000|analyzeduration;5000000|probesize;5000000|max_delay;500000"
+# Konfigurasi FFMPEG untuk stabilitas stream RTSP dan handle corrupted frames
+os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = (
+    "rtsp_transport;tcp|"  # TCP lebih stabil dari UDP untuk menghindari packet loss
+    "reorder_queue_size;500|"  # Tingkatkan buffer untuk handle frame reordering
+    "stimeout;10000000|"  # Socket timeout 10 detik
+    "buffer_size;8192000|"  # Buffer 8MB untuk menampung frame burst
+    "max_delay;1000000|"  # Max delay 1 detik
+    "analyzeduration;2000000|"  # Analisis stream 2 detik
+    "probesize;2000000|"  # Probe size 2MB
+    "fflags;nobuffer|"  # Disable buffering untuk real-time
+    "flags;low_delay|"  # Low latency mode
+    "fflags;discardcorrupt"  # PENTING: Discard corrupted frames instead of showing black
+)
 
 BASE_DIR = Path(__file__).resolve().parent
 

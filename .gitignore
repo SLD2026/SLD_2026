@@ -4,3 +4,4 @@ __pycache__/
 *.pyc
 frontend/static/violations/
 barang_bukti/
+database_wajah/
